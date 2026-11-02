@@ -1,0 +1,109 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidClient(data, userId) {
+      return data.userId == userId &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+        data.phone is string && data.phone.size() <= 50 &&
+        (!('email' in data) || data.email is string) &&
+        data.source in ['حراج', 'مرجان', 'تيك توك', 'فيسبوك', 'واتساب', 'أخرى'] &&
+        data.status in ['جديد', 'تم التواصل', 'مهتم', 'تفاوض', 'تم البيع', 'خسرناه'] &&
+        (!('notes' in data) || data.notes is string) &&
+        (!('lastContactDate' in data) || data.lastContactDate is string) &&
+        (!('dealValue' in data) || data.dealValue is number) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time)) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidAdPost(data, userId) {
+      return data.userId == userId &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 300 &&
+        data.description is string && data.description.size() <= 5000 &&
+        data.status in ['لم ينشر', 'نُشر', 'يحتاج تجديد'] &&
+        (!('price' in data) || data.price is string) &&
+        (!('city' in data) || data.city is string) &&
+        (!('platform' in data) || data.platform is string) &&
+        (!('generatedVersions' in data) || data.generatedVersions is map) &&
+        (!('renewalDays' in data) || data.renewalDays is number) &&
+        (!('postUrl' in data) || data.postUrl is string) &&
+        (!('scheduledDate' in data) || data.scheduledDate is string) &&
+        (!('publishedAt' in data) || data.publishedAt is string) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time)) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidMessageTemplate(data, userId) {
+      return data.userId == userId &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+        data.type in ['ترحيب', 'متابعة', 'عرض سعر', 'شكر', 'تذكير'] &&
+        data.content is string && data.content.size() <= 3000 &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time)) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidQuote(data, userId) {
+      return data.userId == userId &&
+        data.quoteNumber is string && data.quoteNumber.size() > 0 &&
+        data.clientName is string && data.clientName.size() > 0 &&
+        data.status in ['مسودة', 'مرسل', 'مقبول', 'مرفوض'] &&
+        (!('clientId' in data) || data.clientId is string) &&
+        (!('clientPhone' in data) || data.clientPhone is string) &&
+        (!('date' in data) || data.date is string) &&
+        (!('expiryDate' in data) || data.expiryDate is string) &&
+        (!('items' in data) || data.items is list) &&
+        (!('subtotal' in data) || data.subtotal is number) &&
+        (!('taxRate' in data) || data.taxRate is number) &&
+        (!('taxAmount' in data) || data.taxAmount is number) &&
+        (!('grandTotal' in data) || data.grandTotal is number) &&
+        (!('notes' in data) || data.notes is string) &&
+        (!('googleSheetUrl' in data) || data.googleSheetUrl is string) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time)) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /clients/{clientId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidClient(incoming(), userId);
+        allow update: if isOwner(userId) && isValidClient(incoming(), userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /ads/{adId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidAdPost(incoming(), userId);
+        allow update: if isOwner(userId) && isValidAdPost(incoming(), userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /templates/{templateId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidMessageTemplate(incoming(), userId);
+        allow update: if isOwner(userId) && isValidMessageTemplate(incoming(), userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /quotes/{quoteId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidQuote(incoming(), userId);
+        allow update: if isOwner(userId) && isValidQuote(incoming(), userId);
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

@@ -1,0 +1,267 @@
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "description": "Represents a customer or prospect in the CRM pipeline.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this client record."
+        },
+        "name": {
+          "type": "string",
+          "description": "The client name."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Client phone number."
+        },
+        "email": {
+          "type": "string",
+          "description": "Client email address."
+        },
+        "source": {
+          "type": "string",
+          "description": "Client lead source.",
+          "enum": ["حراج", "مرجان", "تيك توك", "فيسبوك", "واتساب", "أخرى"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Pipeline stage of the client.",
+          "enum": ["جديد", "تم التواصل", "مهتم", "تفاوض", "تم البيع", "خسرناه"]
+        },
+        "notes": {
+          "type": "string",
+          "description": "Internal notes regarding interactions."
+        },
+        "lastContactDate": {
+          "type": "string",
+          "description": "ISO date string or timestamp of last contact."
+        },
+        "dealValue": {
+          "type": "number",
+          "description": "Estimated deal or transaction value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["userId", "name", "phone", "source", "status"]
+    },
+    "AdPost": {
+      "title": "AdPost",
+      "description": "Represents a product/service marketing post for classifieds and social media.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this ad."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title or name of the product/service."
+        },
+        "price": {
+          "type": "string",
+          "description": "Price string or range."
+        },
+        "description": {
+          "type": "string",
+          "description": "Original raw product description."
+        },
+        "city": {
+          "type": "string",
+          "description": "Target city or location."
+        },
+        "platform": {
+          "type": "string",
+          "description": "Primary platform or general."
+        },
+        "status": {
+          "type": "string",
+          "description": "Publishing status.",
+          "enum": ["لم ينشر", "نُشر", "يحتاج تجديد"]
+        },
+        "generatedVersions": {
+          "type": "object",
+          "description": "AI-generated versions for various platforms."
+        },
+        "renewalDays": {
+          "type": "number",
+          "description": "Days after which ad needs renewal."
+        },
+        "postUrl": {
+          "type": "string",
+          "description": "Published post URL."
+        },
+        "scheduledDate": {
+          "type": "string",
+          "description": "Scheduled post date."
+        },
+        "publishedAt": {
+          "type": "string",
+          "description": "Publication timestamp string."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp."
+        }
+      },
+      "required": ["userId", "title", "description", "status"]
+    },
+    "MessageTemplate": {
+      "title": "MessageTemplate",
+      "description": "Customer messaging template for WhatsApp and Email.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user."
+        },
+        "title": {
+          "type": "string",
+          "description": "Template title."
+        },
+        "type": {
+          "type": "string",
+          "description": "Category of the message.",
+          "enum": ["ترحيب", "متابعة", "عرض سعر", "شكر", "تذكير"]
+        },
+        "content": {
+          "type": "string",
+          "description": "The message body text."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp."
+        }
+      },
+      "required": ["userId", "title", "type", "content"]
+    },
+    "Quote": {
+      "title": "Quote",
+      "description": "Price quotation document for items/services with Google Sheets sync.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user."
+        },
+        "quoteNumber": {
+          "type": "string",
+          "description": "Quotation reference number."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Linked client ID."
+        },
+        "clientName": {
+          "type": "string",
+          "description": "Name of the recipient client."
+        },
+        "clientPhone": {
+          "type": "string",
+          "description": "Client phone number."
+        },
+        "date": {
+          "type": "string",
+          "description": "Quotation issue date."
+        },
+        "expiryDate": {
+          "type": "string",
+          "description": "Quotation expiration date."
+        },
+        "status": {
+          "type": "string",
+          "description": "Quotation status.",
+          "enum": ["مسودة", "مرسل", "مقبول", "مرفوض"]
+        },
+        "items": {
+          "type": "array",
+          "description": "Line items of the quote."
+        },
+        "subtotal": {
+          "type": "number",
+          "description": "Total before tax."
+        },
+        "taxRate": {
+          "type": "number",
+          "description": "VAT tax percentage."
+        },
+        "taxAmount": {
+          "type": "number",
+          "description": "Calculated VAT amount."
+        },
+        "grandTotal": {
+          "type": "number",
+          "description": "Total including tax."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Terms, payment methods, delivery notes."
+        },
+        "googleSheetUrl": {
+          "type": "string",
+          "description": "Associated Google Sheet URL."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp."
+        }
+      },
+      "required": ["userId", "quoteNumber", "clientName", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/clients/{clientId}": {
+      "schema": {
+        "$ref": "#/entities/Client"
+      },
+      "description": "User clients in the sales pipeline."
+    },
+    "/users/{userId}/ads/{adId}": {
+      "schema": {
+        "$ref": "#/entities/AdPost"
+      },
+      "description": "Marketing ad posts and multi-platform generated copy."
+    },
+    "/users/{userId}/templates/{templateId}": {
+      "schema": {
+        "$ref": "#/entities/MessageTemplate"
+      },
+      "description": "Message templates for customer follow-up and outreach."
+    },
+    "/users/{userId}/quotes/{quoteId}": {
+      "schema": {
+        "$ref": "#/entities/Quote"
+      },
+      "description": "User price quotations and Google Sheets integrated records."
+    }
+  }
+}
