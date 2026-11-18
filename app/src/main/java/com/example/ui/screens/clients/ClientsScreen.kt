@@ -1,5 +1,7 @@
 package com.example.ui.screens.clients
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -19,15 +21,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TableRows
 import androidx.compose.material.icons.filled.ViewKanban
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -36,11 +43,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,6 +57,12 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.Client
 import com.example.ui.theme.HubNavy
 import com.example.ui.theme.HubTeal
+import com.example.util.ExcelCell
+import com.example.util.ExcelCsvUtils
+import com.example.util.ImportResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class ClientsViewMode {
     KANBAN, TABLE
@@ -60,8 +75,13 @@ fun ClientsScreen(
     onAddClient: (Client) -> Unit,
     onUpdateClient: (Client) -> Unit,
     onDeleteClient: (String) -> Unit,
-    onMoveStatus: (Client, String) -> Unit
+    onMoveStatus: (Client, String) -> Unit,
+    onImportClientsBatch: (suspend (List<Client>) -> Int)? = null,
+    onShowMessage: ((String) -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     var viewMode by remember { mutableStateOf(ClientsViewMode.KANBAN) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedStatusFilter by remember { mutableStateOf("الكل") }
@@ -70,6 +90,53 @@ fun ClientsScreen(
     var clientToEdit by remember { mutableStateOf<Client?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var clientToDelete by remember { mutableStateOf<Client?>(null) }
+
+    var pendingExportTable by remember { mutableStateOf<Pair<List<String>, List<List<ExcelCell>>>?>(null) }
+    var pendingSheetName by remember { mutableStateOf("العملاء") }
+    var importPreview by remember { mutableStateOf<ImportResult<Client>?>(null) }
+    var isImporting by remember { mutableStateOf(false) }
+
+    val createXlsxLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    ) { uri ->
+        val table = pendingExportTable
+        if (uri != null && table != null) {
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri)?.use { out ->
+                            ExcelCsvUtils.writeXlsx(out, pendingSheetName, table.first, table.second)
+                        }
+                    }
+                    onShowMessage?.invoke("تم تصدير قائمة العملاء بصيغة Excel بنجاح")
+                } catch (e: Exception) {
+                    onShowMessage?.invoke("فشل التصدير: ${e.message}")
+                }
+            }
+        }
+    }
+
+    val openImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val (format, rows) = withContext(Dispatchers.IO) {
+                        ExcelCsvUtils.readRowsFromUri(context, uri)
+                    }
+                    val parsed = ExcelCsvUtils.parseClientsFromRows(rows, format)
+                    if (parsed.items.isEmpty()) {
+                        onShowMessage?.invoke("لم يتم العثور على عملاء صالحين في الملف.")
+                    } else {
+                        importPreview = parsed
+                    }
+                } catch (e: Exception) {
+                    onShowMessage?.invoke("تعذر قراءة الملف: ${e.message}")
+                }
+            }
+        }
+    }
 
     val filteredClients = remember(clients, searchQuery, selectedStatusFilter, selectedSourceFilter) {
         clients.filter { client ->
@@ -164,12 +231,13 @@ fun ClientsScreen(
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Source Filters Scroll Row
+                    // Source Filters & Excel Quick Row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         val sourceOptions = listOf("الكل") + Client.SOURCES
                         sourceOptions.forEach { sourceOption ->
@@ -179,6 +247,31 @@ fun ClientsScreen(
                                 isSelected = isSelected,
                                 onClick = { selectedSourceFilter = sourceOption }
                             )
+                        }
+
+                        if (onImportClientsBatch != null) {
+                            OutlinedButton(
+                                onClick = {
+                                    pendingSheetName = "العملاء"
+                                    pendingExportTable = ExcelCsvUtils.clientsTable(filteredClients)
+                                    createXlsxLauncher.launch("العملاء.xlsx")
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.height(30.dp)
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, tint = Color(0xFF107C41), modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Excel", fontSize = 11.sp, color = Color(0xFF107C41))
+                            }
+                            OutlinedButton(
+                                onClick = { openImportLauncher.launch(arrayOf("*/*")) },
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.height(30.dp)
+                            ) {
+                                Icon(Icons.Default.FileUpload, contentDescription = null, tint = HubTeal, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("استيراد", fontSize = 11.sp, color = HubTeal)
+                            }
                         }
                     }
                 }
@@ -276,6 +369,50 @@ fun ClientsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { clientToDelete = null }) {
+                    Text("إلغاء")
+                }
+            }
+        )
+    }
+
+    val preview = importPreview
+    if (preview != null && onImportClientsBatch != null) {
+        AlertDialog(
+            onDismissRequest = { if (!isImporting) importPreview = null },
+            title = { Text("استيراد العملاء", fontWeight = FontWeight.Bold, color = HubNavy) },
+            text = {
+                Column {
+                    Text("الصيغة: ${preview.detectedFormat}")
+                    Text("العملاء الجاهزون للاستيراد: ${preview.items.size}")
+                    preview.items.take(3).forEach { c ->
+                        Text("• ${c.name} (${c.phone})", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !isImporting,
+                    onClick = {
+                        isImporting = true
+                        scope.launch {
+                            try {
+                                val count = onImportClientsBatch(preview.items)
+                                importPreview = null
+                                onShowMessage?.invoke("تم استيراد $count عميل بنجاح")
+                            } catch (e: Exception) {
+                                onShowMessage?.invoke("فشل الاستيراد: ${e.message}")
+                            } finally {
+                                isImporting = false
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = HubNavy)
+                ) {
+                    Text(if (isImporting) "جارٍ الحفظ..." else "تأكيد الاستيراد")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !isImporting, onClick = { importPreview = null }) {
                     Text("إلغاء")
                 }
             }

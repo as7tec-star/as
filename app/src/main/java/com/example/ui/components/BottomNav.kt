@@ -15,10 +15,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.NotificationImportant
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -36,16 +36,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.HubNavy
-import com.example.ui.theme.HubTeal
-
-import androidx.compose.material.icons.filled.Receipt
 
 enum class AppNavTab(val title: String, val icon: ImageVector) {
     CLIENTS("العملاء", Icons.Default.People),
-    QUOTES("عروض الأسعار", Icons.Default.Receipt),
-    FOLLOW_UP("مهام اليوم", Icons.Default.NotificationImportant),
-    ADS("استوديو الإعلانات", Icons.Default.Campaign),
-    MESSAGING("المراسلة", Icons.Default.Chat),
+    FINANCE("المالية", Icons.Default.AccountBalanceWallet),
+    HR_PAYROLL("الموظفون", Icons.Default.Badge),
+    MARKETING("التسويق", Icons.Default.Campaign),
     ANALYTICS("الإحصائيات", Icons.Default.BarChart)
 }
 
@@ -53,7 +49,8 @@ enum class AppNavTab(val title: String, val icon: ImageVector) {
 fun BottomNav(
     selectedTab: AppNavTab,
     onTabSelected: (AppNavTab) -> Unit,
-    followUpCount: Int = 0
+    followUpCount: Int = 0,
+    financeAlertCount: Int = 0
 ) {
     Surface(
         color = Color.White,
@@ -78,20 +75,25 @@ fun BottomNav(
                         .clip(RoundedCornerShape(12.dp))
                         .background(bgColor)
                         .clickable { onTabSelected(tab) }
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (tab == AppNavTab.FOLLOW_UP && followUpCount > 0) {
+                        val badgeCount = when (tab) {
+                            AppNavTab.MARKETING -> followUpCount
+                            AppNavTab.FINANCE -> financeAlertCount
+                            else -> 0
+                        }
+                        if (badgeCount > 0) {
                             BadgedBox(
                                 badge = {
                                     Badge(
                                         containerColor = Color(0xFFE53E3E),
                                         contentColor = Color.White
                                     ) {
-                                        Text("$followUpCount", fontSize = 10.sp)
+                                        Text("$badgeCount", fontSize = 10.sp)
                                     }
                                 }
                             ) {

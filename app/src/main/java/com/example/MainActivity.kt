@@ -15,6 +15,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -24,27 +25,36 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.credentials.CredentialManager
+import androidx.compose.runtime.key
 import com.example.data.model.AdPost
+import com.example.data.model.BusinessTransaction
 import com.example.data.model.Client
+import com.example.data.model.Employee
 import com.example.data.model.MessageTemplate
+import com.example.data.model.PayrollRecord
+import com.example.data.model.Product
 import com.example.data.model.Quote
 import com.example.data.repository.AdPostsRepository
 import com.example.data.repository.AiMarketingRepository
 import com.example.data.repository.ClientsRepository
+import com.example.data.repository.EmployeesRepository
+import com.example.data.repository.PayrollRepository
+import com.example.data.repository.ProductsRepository
 import com.example.data.repository.QuotesRepository
 import com.example.data.repository.TemplatesRepository
+import com.example.data.repository.TransactionsRepository
 import com.example.ui.auth.AuthScreen
 import com.example.ui.auth.signOutUser
 import com.example.ui.components.AppNavTab
 import com.example.ui.components.BottomNav
 import com.example.ui.components.TopHeader
-import com.example.ui.screens.ads.AdStudioScreen
 import com.example.ui.screens.analytics.AnalyticsScreen
 import com.example.ui.screens.clients.ClientsScreen
-import com.example.ui.screens.followup.FollowUpScreen
-import com.example.ui.screens.messaging.MessagingScreen
-import com.example.ui.screens.quotes.QuotesScreen
+import com.example.ui.screens.hubs.FinanceHubScreen
+import com.example.ui.screens.hubs.MarketingHubScreen
+import com.example.ui.screens.payroll.EmployeesPayrollScreen
 import com.example.ui.theme.MarkazAmaliTheme
+import com.example.util.StockAlertNotifier
 import com.example.util.configureAppCheck
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
@@ -52,7 +62,6 @@ import com.google.firebase.auth.auth
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -94,24 +103,27 @@ fun AppContent() {
         }
     }
 
-    if (currentUser == null) {
+    val user = currentUser
+    if (user == null) {
         AuthScreen(
             onAuthSuccess = {
                 currentUser = Firebase.auth.currentUser
             }
         )
     } else {
-        MainBusinessHubScreen(
-            userEmail = currentUser?.email ?: "",
-            onSignOut = {
-                signOutUser(
-                    context = context,
-                    credentialManager = credentialManager,
-                    onSignOutComplete = { currentUser = null },
-                    scope = scope
-                )
-            }
-        )
+        key(user.uid) {
+            MainBusinessHubScreen(
+                userEmail = user.email ?: "",
+                onSignOut = {
+                    signOutUser(
+                        context = context,
+                        credentialManager = credentialManager,
+                        onSignOutComplete = { currentUser = null },
+                        scope = scope
+                    )
+                }
+            )
+        }
     }
 }
 
@@ -126,6 +138,10 @@ fun MainBusinessHubScreen(
 
     val clientsRepository = remember { ClientsRepository(context) }
     val quotesRepository = remember { QuotesRepository(context) }
+    val transactionsRepository = remember { TransactionsRepository(context) }
+    val productsRepository = remember { ProductsRepository(context) }
+    val employeesRepository = remember { EmployeesRepository(context) }
+    val payrollRepository = remember { PayrollRepository(context) }
     val adPostsRepository = remember { AdPostsRepository(context) }
     val templatesRepository = remember { TemplatesRepository(context) }
     val aiRepository = remember { AiMarketingRepository() }
@@ -138,17 +154,34 @@ fun MainBusinessHubScreen(
     var quotesList by remember { mutableStateOf<List<Quote>>(emptyList()) }
     var isQuotesLoading by remember { mutableStateOf(true) }
 
+    var transactionsList by remember { mutableStateOf<List<BusinessTransaction>>(emptyList()) }
+    var isTransactionsLoading by remember { mutableStateOf(true) }
+
+    var productsList by remember { mutableStateOf<List<Product>>(emptyList()) }
+    var isProductsLoading by remember { mutableStateOf(true) }
+    val notifiedProductLevels = remember { mutableStateMapOf<String, Double>() }
+
+    var employeesList by remember { mutableStateOf<List<Employee>>(emptyList()) }
+    var isEmployeesLoading by remember { mutableStateOf(true) }
+
+    var payrollsList by remember { mutableStateOf<List<PayrollRecord>>(emptyList()) }
+    var isPayrollsLoading by remember { mutableStateOf(true) }
+
     var adsList by remember { mutableStateOf<List<AdPost>>(emptyList()) }
     var isAdsLoading by remember { mutableStateOf(true) }
 
     var templatesList by remember { mutableStateOf<List<MessageTemplate>>(emptyList()) }
+
+    fun showMessage(msg: String) {
+        scope.launch { snackbarHostState.showSnackbar(msg) }
+    }
 
     // Realtime listeners
     LaunchedEffect(Unit) {
         clientsRepository.observeClients()
             .catch { e ->
                 isClientsLoading = false
-                scope.launch { snackbarHostState.showSnackbar("خطأ في تحميل العملاء: ${e.message}") }
+                showMessage("خطأ في تحميل العملاء: ${e.message}")
             }
             .collect { list ->
                 clientsList = list
@@ -157,10 +190,46 @@ fun MainBusinessHubScreen(
     }
 
     LaunchedEffect(Unit) {
+        transactionsRepository.observeTransactions()
+            .catch { e ->
+                isTransactionsLoading = false
+                showMessage("خطأ في تحميل المبيعات والمشتريات: ${e.message}")
+            }
+            .collect { list ->
+                transactionsList = list
+                isTransactionsLoading = false
+            }
+    }
+
+    LaunchedEffect(Unit) {
+        employeesRepository.observeEmployees()
+            .catch { e ->
+                isEmployeesLoading = false
+                showMessage("خطأ في تحميل الموظفين: ${e.message}")
+            }
+            .collect { list ->
+                employeesList = list
+                isEmployeesLoading = false
+            }
+    }
+
+    LaunchedEffect(Unit) {
+        payrollRepository.observePayrolls()
+            .catch { e ->
+                isPayrollsLoading = false
+                showMessage("خطأ في تحميل مسيرات الرواتب: ${e.message}")
+            }
+            .collect { list ->
+                payrollsList = list
+                isPayrollsLoading = false
+            }
+    }
+
+    LaunchedEffect(Unit) {
         adPostsRepository.observeAds()
             .catch { e ->
                 isAdsLoading = false
-                scope.launch { snackbarHostState.showSnackbar("خطأ في تحميل الإعلانات: ${e.message}") }
+                showMessage("خطأ في تحميل الإعلانات: ${e.message}")
             }
             .collect { list ->
                 adsList = list
@@ -172,7 +241,7 @@ fun MainBusinessHubScreen(
         quotesRepository.observeQuotes()
             .catch { e ->
                 isQuotesLoading = false
-                scope.launch { snackbarHostState.showSnackbar("خطأ في تحميل عروض الأسعار: ${e.message}") }
+                showMessage("خطأ في تحميل عروض الأسعار: ${e.message}")
             }
             .collect { list ->
                 quotesList = list
@@ -186,6 +255,42 @@ fun MainBusinessHubScreen(
             .collect { list ->
                 templatesList = list
             }
+    }
+
+    LaunchedEffect(Unit) {
+        StockAlertNotifier.createChannel(context)
+        productsRepository.observeProducts()
+            .catch { e ->
+                isProductsLoading = false
+                showMessage("خطأ في تحميل المخزون: ${e.message}")
+            }
+            .collect { list ->
+                productsList = list
+                isProductsLoading = false
+            }
+    }
+
+    val lowStockProducts = remember(productsList) {
+        productsList.filter { it.isLowStock() }
+    }
+
+    LaunchedEffect(productsList) {
+        if (isProductsLoading) return@LaunchedEffect
+        val lowIds = lowStockProducts.map { it.id }.toSet()
+        notifiedProductLevels.keys.toList().forEach { id ->
+            if (id !in lowIds) notifiedProductLevels.remove(id)
+        }
+        val newlyLow = lowStockProducts.filter { p ->
+            val prevQty = notifiedProductLevels[p.id]
+            prevQty == null || p.quantity < prevQty
+        }
+        if (newlyLow.isNotEmpty()) {
+            newlyLow.forEach { p -> notifiedProductLevels[p.id] = p.quantity }
+            StockAlertNotifier.notifyLowStockProducts(context, lowStockProducts)
+            val summaryNames = newlyLow.take(2).joinToString("، ") { "${it.name} (${it.formattedQuantity()})" }
+            val extra = if (newlyLow.size > 2) " و+${newlyLow.size - 2}" else ""
+            showMessage("تنبيه مخزون منخفض: $summaryNames$extra")
+        }
     }
 
     // Follow-up overdue count calculation (>= 3 days)
@@ -206,7 +311,7 @@ fun MainBusinessHubScreen(
                     } else {
                         true
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     true
                 }
             }
@@ -224,7 +329,8 @@ fun MainBusinessHubScreen(
             BottomNav(
                 selectedTab = currentTab,
                 onTabSelected = { currentTab = it },
-                followUpCount = overdueCount
+                followUpCount = overdueCount,
+                financeAlertCount = lowStockProducts.size
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -243,9 +349,9 @@ fun MainBusinessHubScreen(
                             scope.launch {
                                 try {
                                     clientsRepository.addClient(newClient)
-                                    snackbarHostState.showSnackbar("تمت إضافة العميل بنجاح")
+                                    showMessage("تمت إضافة العميل بنجاح")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشلت الإضافة: ${e.message}")
+                                    showMessage("فشلت الإضافة: ${e.message}")
                                 }
                             }
                         },
@@ -253,9 +359,9 @@ fun MainBusinessHubScreen(
                             scope.launch {
                                 try {
                                     clientsRepository.updateClient(updated)
-                                    snackbarHostState.showSnackbar("تم تحديث العميل بنجاح")
+                                    showMessage("تم تحديث العميل بنجاح")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل التحديث: ${e.message}")
+                                    showMessage("فشل التحديث: ${e.message}")
                                 }
                             }
                         },
@@ -263,9 +369,9 @@ fun MainBusinessHubScreen(
                             scope.launch {
                                 try {
                                     clientsRepository.deleteClient(clientId)
-                                    snackbarHostState.showSnackbar("تم حذف العميل بنجاح")
+                                    showMessage("تم حذف العميل بنجاح")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل الحذف: ${e.message}")
+                                    showMessage("فشل الحذف: ${e.message}")
                                 }
                             }
                         },
@@ -273,26 +379,85 @@ fun MainBusinessHubScreen(
                             scope.launch {
                                 try {
                                     clientsRepository.updateClientStatus(client.id, newStatus)
-                                    snackbarHostState.showSnackbar("تم نقل العميل إلى مرحلة: $newStatus")
+                                    showMessage("تم نقل العميل إلى مرحلة: $newStatus")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل نقل المرحلة: ${e.message}")
+                                    showMessage("فشل نقل المرحلة: ${e.message}")
                                 }
                             }
-                        }
+                        },
+                        onImportClientsBatch = { imported ->
+                            clientsRepository.addClientsBatch(imported)
+                        },
+                        onShowMessage = ::showMessage
                     )
                 }
-                AppNavTab.QUOTES -> {
-                    QuotesScreen(
+
+                AppNavTab.FINANCE -> {
+                    FinanceHubScreen(
+                        transactions = transactionsList,
                         quotes = quotesList,
                         clients = clientsList,
-                        isLoading = isQuotesLoading,
+                        products = productsList,
+                        isTransactionsLoading = isTransactionsLoading,
+                        isQuotesLoading = isQuotesLoading,
+                        isProductsLoading = isProductsLoading,
+                        onAddTransaction = { newTx ->
+                            scope.launch {
+                                try {
+                                    transactionsRepository.addTransaction(newTx)
+                                    val affectedLow = productsRepository.applyTransactionToStock(newTx, productsList)
+                                    if (affectedLow.isNotEmpty()) {
+                                        StockAlertNotifier.notifyLowStockProducts(context, affectedLow)
+                                    }
+                                    showMessage("تم حفظ الفاتورة وتحديث المخزون بنجاح")
+                                } catch (e: Exception) {
+                                    showMessage("فشل حفظ الفاتورة: ${e.message}")
+                                }
+                            }
+                        },
+                        onUpdateTransaction = { updated ->
+                            scope.launch {
+                                try {
+                                    transactionsRepository.updateTransaction(updated)
+                                    showMessage("تم تحديث الفاتورة بنجاح")
+                                } catch (e: Exception) {
+                                    showMessage("فشل تحديث الفاتورة: ${e.message}")
+                                }
+                            }
+                        },
+                        onDeleteTransaction = { txId ->
+                            scope.launch {
+                                try {
+                                    transactionsRepository.deleteTransaction(txId)
+                                    showMessage("تم حذف الفاتورة")
+                                } catch (e: Exception) {
+                                    showMessage("فشل الحذف: ${e.message}")
+                                }
+                            }
+                        },
+                        onUpdateTransactionStatus = { txId, status ->
+                            scope.launch {
+                                try {
+                                    transactionsRepository.updatePaymentStatus(txId, status)
+                                    showMessage("تم تحديث حالة الدفع إلى: $status")
+                                } catch (e: Exception) {
+                                    showMessage("فشل التحديث: ${e.message}")
+                                }
+                            }
+                        },
+                        onImportTransactionsBatch = { imported ->
+                            transactionsRepository.addTransactionsBatch(imported)
+                        },
+                        onImportClientsBatch = { imported ->
+                            clientsRepository.addClientsBatch(imported)
+                        },
                         onAddQuote = { newQuote ->
                             scope.launch {
                                 try {
                                     quotesRepository.addQuote(newQuote)
-                                    snackbarHostState.showSnackbar("تم حفظ عرض السعر بنجاح")
+                                    showMessage("تم حفظ عرض السعر بنجاح")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل حفظ عرض السعر: ${e.message}")
+                                    showMessage("فشل حفظ عرض السعر: ${e.message}")
                                 }
                             }
                         },
@@ -300,9 +465,9 @@ fun MainBusinessHubScreen(
                             scope.launch {
                                 try {
                                     quotesRepository.updateQuote(updated)
-                                    snackbarHostState.showSnackbar("تم تحديث عرض السعر")
+                                    showMessage("تم تحديث عرض السعر")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل التحديث: ${e.message}")
+                                    showMessage("فشل التحديث: ${e.message}")
                                 }
                             }
                         },
@@ -310,51 +475,180 @@ fun MainBusinessHubScreen(
                             scope.launch {
                                 try {
                                     quotesRepository.deleteQuote(quoteId)
-                                    snackbarHostState.showSnackbar("تم حذف عرض السعر")
+                                    showMessage("تم حذف عرض السعر")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل الحذف: ${e.message}")
+                                    showMessage("فشل الحذف: ${e.message}")
                                 }
                             }
                         },
-                        onUpdateStatus = { quoteId, newStatus ->
+                        onUpdateQuoteStatus = { quoteId, newStatus ->
                             scope.launch {
                                 try {
                                     quotesRepository.updateQuoteStatus(quoteId, newStatus)
-                                    snackbarHostState.showSnackbar("تم تحديث الحالة إلى: $newStatus")
+                                    showMessage("تم تحديث الحالة إلى: $newStatus")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل التحديث: ${e.message}")
+                                    showMessage("فشل التحديث: ${e.message}")
                                 }
                             }
-                        }
+                        },
+                        onAddProduct = { newProduct ->
+                            scope.launch {
+                                try {
+                                    productsRepository.addProduct(newProduct)
+                                    showMessage("تمت إضافة المنتج للمخزون")
+                                } catch (e: Exception) {
+                                    showMessage("فشلت الإضافة: ${e.message}")
+                                }
+                            }
+                        },
+                        onUpdateProduct = { updated ->
+                            scope.launch {
+                                try {
+                                    productsRepository.updateProduct(updated)
+                                    showMessage("تم تحديث بيانات المنتج")
+                                } catch (e: Exception) {
+                                    showMessage("فشل التحديث: ${e.message}")
+                                }
+                            }
+                        },
+                        onAdjustProductQuantity = { productId, newQty ->
+                            scope.launch {
+                                try {
+                                    productsRepository.adjustQuantity(productId, newQty)
+                                } catch (e: Exception) {
+                                    showMessage("فشل تعديل الكمية: ${e.message}")
+                                }
+                            }
+                        },
+                        onToggleProductAlerts = { productId, enabled ->
+                            scope.launch {
+                                try {
+                                    productsRepository.toggleAlerts(productId, enabled)
+                                    showMessage(if (enabled) "تم تفعيل التنبيه التلقائي" else "تم إيقاف التنبيه لهذا المنتج")
+                                } catch (e: Exception) {
+                                    showMessage("فشل التحديث: ${e.message}")
+                                }
+                            }
+                        },
+                        onDeleteProduct = { productId ->
+                            scope.launch {
+                                try {
+                                    productsRepository.deleteProduct(productId)
+                                    showMessage("تم حذف المنتج من المخزون")
+                                } catch (e: Exception) {
+                                    showMessage("فشل الحذف: ${e.message}")
+                                }
+                            }
+                        },
+                        onImportProductsBatch = { imported ->
+                            productsRepository.addProductsBatch(imported)
+                        },
+                        onShowMessage = ::showMessage
                     )
                 }
-                AppNavTab.FOLLOW_UP -> {
-                    FollowUpScreen(
+
+                AppNavTab.HR_PAYROLL -> {
+                    EmployeesPayrollScreen(
+                        employees = employeesList,
+                        payrolls = payrollsList,
+                        isEmployeesLoading = isEmployeesLoading,
+                        isPayrollsLoading = isPayrollsLoading,
+                        onAddEmployee = { emp ->
+                            scope.launch {
+                                try {
+                                    employeesRepository.addEmployee(emp)
+                                    showMessage("تمت إضافة الموظف بنجاح")
+                                } catch (e: Exception) {
+                                    showMessage("فشلت الإضافة: ${e.message}")
+                                }
+                            }
+                        },
+                        onUpdateEmployee = { updated ->
+                            scope.launch {
+                                try {
+                                    employeesRepository.updateEmployee(updated)
+                                    showMessage("تم تحديث بيانات الموظف")
+                                } catch (e: Exception) {
+                                    showMessage("فشل التحديث: ${e.message}")
+                                }
+                            }
+                        },
+                        onDeleteEmployee = { empId ->
+                            scope.launch {
+                                try {
+                                    employeesRepository.deleteEmployee(empId)
+                                    showMessage("تم حذف الموظف")
+                                } catch (e: Exception) {
+                                    showMessage("فشل الحذف: ${e.message}")
+                                }
+                            }
+                        },
+                        onImportEmployeesBatch = { imported ->
+                            employeesRepository.addEmployeesBatch(imported)
+                        },
+                        onGenerateMonthlyPayroll = { monthYear, activeEmps, existing ->
+                            payrollRepository.generateMonthlyPayroll(monthYear, activeEmps, existing)
+                        },
+                        onUpdatePayrollRecord = { updated ->
+                            scope.launch {
+                                try {
+                                    payrollRepository.updatePayrollRecord(updated)
+                                    showMessage("تم تحديث سجل الراتب")
+                                } catch (e: Exception) {
+                                    showMessage("فشل التحديث: ${e.message}")
+                                }
+                            }
+                        },
+                        onMarkAllPaid = { records, paymentDate ->
+                            scope.launch {
+                                try {
+                                    payrollRepository.markAllPaid(records, paymentDate)
+                                    showMessage("تم اعتماد وصرف جميع الرواتب المحددة")
+                                } catch (e: Exception) {
+                                    showMessage("فشل الصرف: ${e.message}")
+                                }
+                            }
+                        },
+                        onDeletePayrollRecord = { recordId ->
+                            scope.launch {
+                                try {
+                                    payrollRepository.deletePayrollRecord(recordId)
+                                    showMessage("تم حذف سجل الراتب")
+                                } catch (e: Exception) {
+                                    showMessage("فشل الحذف: ${e.message}")
+                                }
+                            }
+                        },
+                        onShowMessage = ::showMessage
+                    )
+                }
+
+                AppNavTab.MARKETING -> {
+                    MarketingHubScreen(
                         clients = clientsList,
+                        ads = adsList,
+                        templates = templatesList,
+                        isAdsLoading = isAdsLoading,
+                        overdueCount = overdueCount,
+                        templatesRepository = templatesRepository,
+                        aiRepository = aiRepository,
                         onUpdateLastContact = { client, dateStr ->
                             scope.launch {
                                 try {
                                     clientsRepository.updateLastContactDate(client.id, dateStr)
-                                    snackbarHostState.showSnackbar("تم تحديث تاريخ التواصل لـ ${client.name}")
+                                    showMessage("تم تحديث تاريخ التواصل لـ ${client.name}")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل التحديث: ${e.message}")
+                                    showMessage("فشل التحديث: ${e.message}")
                                 }
                             }
-                        }
-                    )
-                }
-                AppNavTab.ADS -> {
-                    AdStudioScreen(
-                        ads = adsList,
-                        isLoading = isAdsLoading,
-                        aiRepository = aiRepository,
+                        },
                         onAddAd = { newAd ->
                             scope.launch {
                                 try {
                                     adPostsRepository.addAd(newAd)
-                                    snackbarHostState.showSnackbar("تم حفظ الإعلان بنجاح")
+                                    showMessage("تم حفظ الإعلان بنجاح")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل حفظ الإعلان: ${e.message}")
+                                    showMessage("فشل حفظ الإعلان: ${e.message}")
                                 }
                             }
                         },
@@ -362,9 +656,9 @@ fun MainBusinessHubScreen(
                             scope.launch {
                                 try {
                                     adPostsRepository.updateAd(updated)
-                                    snackbarHostState.showSnackbar("تم تحديث الإعلان")
+                                    showMessage("تم تحديث الإعلان")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل التحديث: ${e.message}")
+                                    showMessage("فشل التحديث: ${e.message}")
                                 }
                             }
                         },
@@ -372,35 +666,31 @@ fun MainBusinessHubScreen(
                             scope.launch {
                                 try {
                                     adPostsRepository.deleteAd(adId)
-                                    snackbarHostState.showSnackbar("تم حذف الإعلان")
+                                    showMessage("تم حذف الإعلان")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل الحذف: ${e.message}")
+                                    showMessage("فشل الحذف: ${e.message}")
                                 }
                             }
                         },
-                        onUpdateStatus = { adId, newStatus, pubDate ->
+                        onUpdateAdStatus = { adId, newStatus, pubDate ->
                             scope.launch {
                                 try {
                                     adPostsRepository.updateAdStatus(adId, newStatus, pubDate)
-                                    snackbarHostState.showSnackbar("تم تحديث حالة الإعلان إلى: $newStatus")
+                                    showMessage("تم تحديث حالة الإعلان إلى: $newStatus")
                                 } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("فشل التحديث: ${e.message}")
+                                    showMessage("فشل التحديث: ${e.message}")
                                 }
                             }
                         }
                     )
                 }
-                AppNavTab.MESSAGING -> {
-                    MessagingScreen(
-                        clients = clientsList,
-                        templates = templatesList,
-                        templatesRepository = templatesRepository,
-                        aiRepository = aiRepository
-                    )
-                }
+
                 AppNavTab.ANALYTICS -> {
                     AnalyticsScreen(
-                        clients = clientsList
+                        clients = clientsList,
+                        transactions = transactionsList,
+                        employees = employeesList,
+                        payrolls = payrollsList
                     )
                 }
             }

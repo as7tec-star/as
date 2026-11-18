@@ -17,11 +17,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Leaderboard
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Percent
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,7 +36,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,17 +48,61 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.BusinessTransaction
 import com.example.data.model.Client
+import com.example.data.model.Employee
+import com.example.data.model.PayrollRecord
 import com.example.ui.components.SourceBadge
 import com.example.ui.theme.HubAmber
 import com.example.ui.theme.HubNavy
 import com.example.ui.theme.HubTeal
+import com.example.util.FinancialCalculator
+import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
 
 @Composable
 fun AnalyticsScreen(
-    clients: List<Client>
+    clients: List<Client>,
+    transactions: List<BusinessTransaction> = emptyList(),
+    employees: List<Employee> = emptyList(),
+    payrolls: List<PayrollRecord> = emptyList()
 ) {
+    var selectedDatePreset by remember { mutableStateOf(DateRangePreset.ALL) }
+    var filterStartDate by remember { mutableStateOf<String?>(null) }
+    var filterEndDate by remember { mutableStateOf<String?>(null) }
+
+    val filteredTransactions = remember(transactions, filterStartDate, filterEndDate) {
+        val start = filterStartDate?.takeIf { it.length >= 10 }
+        val end = filterEndDate?.takeIf { it.length >= 10 }
+        transactions.filter { tx ->
+            val d = tx.date.trim()
+            if (start == null && end == null) return@filter true
+            if (d.length < 7) return@filter false
+            val afterStart = start == null || d >= start
+            val beforeEnd = end == null || d <= end
+            afterStart && beforeEnd
+        }
+    }
+
+    val filteredPayrolls = remember(payrolls, filterStartDate, filterEndDate) {
+        val startMonth = filterStartDate?.take(7)
+        val endMonth = filterEndDate?.take(7)
+        payrolls.filter { p ->
+            val m = p.monthYear.trim()
+            val afterStart = startMonth == null || m >= startMonth
+            val beforeEnd = endMonth == null || m <= endMonth
+            afterStart && beforeEnd
+        }
+    }
+
+    val monthlyVolume = remember(transactions, filterStartDate, filterEndDate) {
+        FinancialCalculator.aggregateMonthlyVolume(
+            transactions = transactions,
+            startDate = filterStartDate,
+            endDate = filterEndDate
+        )
+    }
+
     val totalClients = clients.size
     val wonClients = clients.count { it.status == "تم البيع" }
     val conversionRate = remember(totalClients, wonClients) {
@@ -74,6 +126,25 @@ fun AnalyticsScreen(
 
     val pipelineValue = remember(clients) {
         clients.filter { it.status == "مهتم" || it.status == "تفاوض" }.sumOf { it.dealValue }
+    }
+
+    val vatSummary = remember(filteredTransactions) {
+        FinancialCalculator.calculateVatSummary(filteredTransactions)
+    }
+
+    val totalPayrollDisbursed = remember(filteredPayrolls) {
+        FinancialCalculator.totalPayrollCost(filteredPayrolls)
+    }
+
+    val activeEmployeesCount = remember(employees) {
+        employees.count { it.status == "نشط" }
+    }
+
+    val netProfitAfterPayroll = remember(vatSummary, totalPayrollDisbursed) {
+        FinancialCalculator.round2(
+            BigDecimal.valueOf(vatSummary.grossOperatingProfit)
+                .subtract(BigDecimal.valueOf(totalPayrollDisbursed))
+        )
     }
 
     // Source breakdown
@@ -102,20 +173,145 @@ fun AnalyticsScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "لوحة مؤشرات الأداء والمبيعات",
+            text = "لوحة المؤشرات المالية والمبيعات",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = HubNavy
         )
         Text(
-            text = "نظرة شمولية على تحويلات العملاء والقنوات الأكثر فعالية",
+            text = "رسوم بيانية تفاعلية للمبيعات والمشتريات الشهرية مع فلترة حسب التاريخ",
             style = MaterialTheme.typography.bodySmall,
             color = Color(0xFF64748B)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        // Key Metrics Grid
+        DateFilterSection(
+            selectedPreset = selectedDatePreset,
+            startDate = filterStartDate,
+            endDate = filterEndDate,
+            onPresetSelected = { preset ->
+                selectedDatePreset = preset
+                if (preset != DateRangePreset.CUSTOM) {
+                    val (s, e) = resolveDatePresetBounds(preset)
+                    filterStartDate = s
+                    filterEndDate = e
+                }
+            },
+            onCustomDatesChanged = { s, e ->
+                selectedDatePreset = DateRangePreset.CUSTOM
+                filterStartDate = s
+                filterEndDate = e
+            },
+            onResetFilter = {
+                selectedDatePreset = DateRangePreset.ALL
+                filterStartDate = null
+                filterEndDate = null
+            }
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        InteractiveMonthlyVolumeChartCard(
+            monthlyData = monthlyVolume,
+            onResetFilter = {
+                selectedDatePreset = DateRangePreset.ALL
+                filterStartDate = null
+                filterEndDate = null
+            }
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Financial & Accounting KPIs
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            MetricCard(
+                title = "إجمالي المبيعات",
+                value = "${FinancialCalculator.formatMoney(vatSummary.salesTotal)} ر.س",
+                sub = "الصافي: ${FinancialCalculator.formatMoney(vatSummary.salesNet)} ر.س",
+                icon = Icons.Default.ReceiptLong,
+                iconColor = HubTeal,
+                modifier = Modifier.weight(1f)
+            )
+            MetricCard(
+                title = "إجمالي المشتريات",
+                value = "${FinancialCalculator.formatMoney(vatSummary.purchasesTotal)} ر.س",
+                sub = "الصافي: ${FinancialCalculator.formatMoney(vatSummary.purchasesNet)} ر.س",
+                icon = Icons.Default.ShoppingCart,
+                iconColor = HubAmber,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            MetricCard(
+                title = if (vatSummary.netVatPayable >= 0) "صافي الضريبة المستحقة" else "رصيد ضريبي دائن",
+                value = "${FinancialCalculator.formatMoney(kotlin.math.abs(vatSummary.netVatPayable))} ر.س",
+                sub = "مخرجات ${FinancialCalculator.formatMoney(vatSummary.outputVat)} - مدخلات ${FinancialCalculator.formatMoney(vatSummary.inputVat)}",
+                icon = Icons.Default.AccountBalance,
+                iconColor = HubNavy,
+                modifier = Modifier.weight(1f)
+            )
+            MetricCard(
+                title = "الرواتب والموظفون",
+                value = "${FinancialCalculator.formatMoney(totalPayrollDisbursed)} ر.س",
+                sub = "$activeEmployeesCount موظف نشط",
+                icon = Icons.Default.Payments,
+                iconColor = Color(0xFF805AD5),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (netProfitAfterPayroll >= 0) Color(0xFFF0FFF4) else Color(0xFFFFF5F5)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "صافي الربح التشغيلي (بعد المشتريات والرواتب)",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = HubNavy
+                    )
+                    Text(
+                        text = "صافي المبيعات − صافي المشتريات − مسير الرواتب",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF64748B)
+                    )
+                }
+                Text(
+                    text = "${FinancialCalculator.formatMoney(netProfitAfterPayroll)} ر.س",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (netProfitAfterPayroll >= 0) Color(0xFF15803D) else Color(0xFFB91C1C)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Key CRM Metrics Grid
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -171,8 +367,8 @@ fun AnalyticsScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 MetricCard(
-                    title = "مبيعات محققة",
-                    value = "${totalDealValue.toInt()} ر.س",
+                    title = "صفقات العملاء المغلقة",
+                    value = "${FinancialCalculator.formatMoney(totalDealValue)} ر.س",
                     sub = "صفقات تم إغلاقها",
                     icon = Icons.Default.CheckCircle,
                     iconColor = Color(0xFF2F855A),
@@ -181,7 +377,7 @@ fun AnalyticsScreen(
 
                 MetricCard(
                     title = "صفقات قيد التفاوض",
-                    value = "${pipelineValue.toInt()} ر.س",
+                    value = "${FinancialCalculator.formatMoney(pipelineValue)} ر.س",
                     sub = "فرص بيعية نشطة",
                     icon = Icons.Default.AttachMoney,
                     iconColor = HubAmber,

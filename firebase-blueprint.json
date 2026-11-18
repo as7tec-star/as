@@ -236,6 +236,324 @@
         }
       },
       "required": ["userId", "quoteNumber", "clientName", "status"]
+    },
+    "BusinessTransaction": {
+      "title": "BusinessTransaction",
+      "description": "Sales or purchase invoice with precise VAT calculation.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner UID."
+        },
+        "type": {
+          "type": "string",
+          "description": "Transaction type.",
+          "enum": ["مبيعات", "مشتريات"]
+        },
+        "invoiceNumber": {
+          "type": "string",
+          "description": "Invoice or receipt reference number."
+        },
+        "partyName": {
+          "type": "string",
+          "description": "Customer or supplier name."
+        },
+        "partyPhone": {
+          "type": "string",
+          "description": "Customer or supplier phone."
+        },
+        "partyTaxNumber": {
+          "type": "string",
+          "description": "Optional VAT registration number."
+        },
+        "category": {
+          "type": "string",
+          "description": "Business category."
+        },
+        "date": {
+          "type": "string",
+          "description": "Invoice date YYYY-MM-DD."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Payment method.",
+          "enum": ["نقدي", "تحويل بنكي", "شبكة / مدى", "آجل"]
+        },
+        "paymentStatus": {
+          "type": "string",
+          "description": "Payment status.",
+          "enum": ["مدفوع", "جزئي", "آجل"]
+        },
+        "taxMode": {
+          "type": "string",
+          "description": "Whether unit prices include VAT or exclude VAT or exempt.",
+          "enum": ["غير شامل الضريبة", "شامل الضريبة", "معفى"]
+        },
+        "taxRate": {
+          "type": "number",
+          "description": "Tax percentage (e.g. 15.0)."
+        },
+        "items": {
+          "type": "array",
+          "description": "Invoice line items."
+        },
+        "subtotal": {
+          "type": "number",
+          "description": "Net amount before tax."
+        },
+        "discountTotal": {
+          "type": "number",
+          "description": "Total discount applied."
+        },
+        "taxAmount": {
+          "type": "number",
+          "description": "Calculated VAT amount."
+        },
+        "grandTotal": {
+          "type": "number",
+          "description": "Final total including tax."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional invoice notes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp."
+        }
+      },
+      "required": ["userId", "type", "invoiceNumber", "partyName", "paymentStatus", "taxMode"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Staff member profile and salary structure.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner UID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Employee full name."
+        },
+        "jobTitle": {
+          "type": "string",
+          "description": "Role or job title."
+        },
+        "department": {
+          "type": "string",
+          "description": "Department name."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Employee phone number."
+        },
+        "email": {
+          "type": "string",
+          "description": "Employee email."
+        },
+        "nationalId": {
+          "type": "string",
+          "description": "National ID or Iqama number."
+        },
+        "hireDate": {
+          "type": "string",
+          "description": "Date of joining YYYY-MM-DD."
+        },
+        "baseSalary": {
+          "type": "number",
+          "description": "Monthly base salary."
+        },
+        "housingAllowance": {
+          "type": "number",
+          "description": "Monthly housing allowance."
+        },
+        "transportAllowance": {
+          "type": "number",
+          "description": "Monthly transport allowance."
+        },
+        "otherAllowances": {
+          "type": "number",
+          "description": "Other monthly allowances."
+        },
+        "defaultDeductions": {
+          "type": "number",
+          "description": "Default monthly deductions (e.g. GOSI)."
+        },
+        "bankIban": {
+          "type": "string",
+          "description": "Optional IBAN for salary transfer."
+        },
+        "status": {
+          "type": "string",
+          "description": "Employment status.",
+          "enum": ["نشط", "إجازة", "منتهي الخدمة"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp."
+        }
+      },
+      "required": ["userId", "name", "jobTitle", "status"]
+    },
+    "PayrollRecord": {
+      "title": "PayrollRecord",
+      "description": "Monthly salary slip and payment status for an employee.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner UID."
+        },
+        "employeeId": {
+          "type": "string",
+          "description": "Linked employee ID."
+        },
+        "employeeName": {
+          "type": "string",
+          "description": "Employee name snapshot."
+        },
+        "jobTitle": {
+          "type": "string",
+          "description": "Job title snapshot."
+        },
+        "employeePhone": {
+          "type": "string",
+          "description": "Employee phone snapshot."
+        },
+        "monthYear": {
+          "type": "string",
+          "description": "Payroll period YYYY-MM."
+        },
+        "baseSalary": {
+          "type": "number",
+          "description": "Base salary amount."
+        },
+        "allowances": {
+          "type": "number",
+          "description": "Total allowances."
+        },
+        "bonuses": {
+          "type": "number",
+          "description": "Bonuses or commissions."
+        },
+        "deductions": {
+          "type": "number",
+          "description": "Deductions or advances."
+        },
+        "netSalary": {
+          "type": "number",
+          "description": "Net payable salary."
+        },
+        "paymentStatus": {
+          "type": "string",
+          "description": "Payroll slip status.",
+          "enum": ["مسودة", "معتمد", "مدفوع"]
+        },
+        "paymentDate": {
+          "type": "string",
+          "description": "Date paid YYYY-MM-DD."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Payroll notes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp."
+        }
+      },
+      "required": ["userId", "employeeId", "employeeName", "monthYear", "paymentStatus"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Inventory product with stock quantity and low-stock alert threshold.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner UID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Product name."
+        },
+        "sku": {
+          "type": "string",
+          "description": "SKU or barcode."
+        },
+        "category": {
+          "type": "string",
+          "description": "Product category."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of measure."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Current available stock quantity."
+        },
+        "minThreshold": {
+          "type": "number",
+          "description": "Minimum stock threshold before low-stock alert triggers."
+        },
+        "unitCost": {
+          "type": "number",
+          "description": "Purchase unit cost."
+        },
+        "sellingPrice": {
+          "type": "number",
+          "description": "Unit selling price."
+        },
+        "supplierName": {
+          "type": "string",
+          "description": "Primary supplier name."
+        },
+        "supplierPhone": {
+          "type": "string",
+          "description": "Supplier phone number for reorder."
+        },
+        "alertsEnabled": {
+          "type": "boolean",
+          "description": "Whether automatic low-stock alerts are enabled for this product."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional product notes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp."
+        }
+      },
+      "required": ["userId", "name", "quantity", "minThreshold"]
     }
   },
   "firestore": {
@@ -262,6 +580,30 @@
         "$ref": "#/entities/Quote"
       },
       "description": "User price quotations and Google Sheets integrated records."
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": {
+        "$ref": "#/entities/BusinessTransaction"
+      },
+      "description": "Sales and purchase invoices with VAT details."
+    },
+    "/users/{userId}/employees/{employeeId}": {
+      "schema": {
+        "$ref": "#/entities/Employee"
+      },
+      "description": "Company employees directory."
+    },
+    "/users/{userId}/payrolls/{payrollId}": {
+      "schema": {
+        "$ref": "#/entities/PayrollRecord"
+      },
+      "description": "Monthly payroll records and salary slips."
+    },
+    "/users/{userId}/products/{productId}": {
+      "schema": {
+        "$ref": "#/entities/Product"
+      },
+      "description": "Inventory products and low-stock alert thresholds."
     }
   }
 }

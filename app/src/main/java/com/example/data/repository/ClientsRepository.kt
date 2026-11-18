@@ -76,6 +76,43 @@ class ClientsRepository(private val db: FirebaseFirestore) {
         }
     }
 
+    suspend fun addClientsBatch(clients: List<Client>): Int {
+        val uid = requireUserId()
+        val collection = db.collection("users").document(uid).collection("clients")
+        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(Date())
+        var count = 0
+        try {
+            clients.chunked(400).forEach { chunk ->
+                val batch = db.batch()
+                chunk.forEach { client ->
+                    val docRef = collection.document()
+                    val data = hashMapOf(
+                        "userId" to uid,
+                        "name" to client.name.trim().take(200),
+                        "phone" to client.phone.trim().take(50),
+                        "email" to client.email.trim(),
+                        "source" to if (client.source in Client.SOURCES) client.source else "أخرى",
+                        "status" to if (client.status in Client.STATUSES) client.status else "جديد",
+                        "notes" to client.notes.trim(),
+                        "lastContactDate" to if (client.lastContactDate.isNotBlank()) client.lastContactDate else todayStr,
+                        "dealValue" to client.dealValue,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                    batch.set(docRef, data)
+                    count++
+                }
+                batch.commit().await()
+            }
+            return count
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, collection.path)
+            throw e
+        }
+    }
+
     suspend fun updateClient(client: Client) {
         val uid = requireUserId()
         require(client.id.isNotBlank()) { "Client ID cannot be blank" }

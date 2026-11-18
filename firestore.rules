@@ -74,6 +74,86 @@ service cloud.firestore {
         (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
     }
 
+    function isValidTransaction(data, userId) {
+      return data.userId == userId &&
+        data.type in ['مبيعات', 'مشتريات'] &&
+        data.invoiceNumber is string && data.invoiceNumber.size() > 0 && data.invoiceNumber.size() <= 100 &&
+        data.partyName is string && data.partyName.size() > 0 && data.partyName.size() <= 200 &&
+        data.paymentStatus in ['مدفوع', 'جزئي', 'آجل'] &&
+        data.taxMode in ['غير شامل الضريبة', 'شامل الضريبة', 'معفى'] &&
+        (!('partyPhone' in data) || data.partyPhone is string) &&
+        (!('partyTaxNumber' in data) || data.partyTaxNumber is string) &&
+        (!('category' in data) || data.category is string) &&
+        (!('date' in data) || data.date is string) &&
+        (!('paymentMethod' in data) || data.paymentMethod in ['نقدي', 'تحويل بنكي', 'شبكة / مدى', 'آجل']) &&
+        (!('taxRate' in data) || (data.taxRate is number && data.taxRate >= 0 && data.taxRate <= 100)) &&
+        (!('items' in data) || data.items is list) &&
+        (!('subtotal' in data) || (data.subtotal is number && data.subtotal >= 0)) &&
+        (!('discountTotal' in data) || (data.discountTotal is number && data.discountTotal >= 0)) &&
+        (!('taxAmount' in data) || (data.taxAmount is number && data.taxAmount >= 0)) &&
+        (!('grandTotal' in data) || (data.grandTotal is number && data.grandTotal >= 0)) &&
+        (!('notes' in data) || data.notes is string) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time)) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidEmployee(data, userId) {
+      return data.userId == userId &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+        data.jobTitle is string && data.jobTitle.size() > 0 && data.jobTitle.size() <= 150 &&
+        data.status in ['نشط', 'إجازة', 'منتهي الخدمة'] &&
+        (!('department' in data) || data.department is string) &&
+        (!('phone' in data) || data.phone is string) &&
+        (!('email' in data) || data.email is string) &&
+        (!('nationalId' in data) || data.nationalId is string) &&
+        (!('hireDate' in data) || data.hireDate is string) &&
+        (!('baseSalary' in data) || (data.baseSalary is number && data.baseSalary >= 0)) &&
+        (!('housingAllowance' in data) || (data.housingAllowance is number && data.housingAllowance >= 0)) &&
+        (!('transportAllowance' in data) || (data.transportAllowance is number && data.transportAllowance >= 0)) &&
+        (!('otherAllowances' in data) || (data.otherAllowances is number && data.otherAllowances >= 0)) &&
+        (!('defaultDeductions' in data) || (data.defaultDeductions is number && data.defaultDeductions >= 0)) &&
+        (!('bankIban' in data) || data.bankIban is string) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time)) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidPayrollRecord(data, userId) {
+      return data.userId == userId &&
+        data.employeeId is string && data.employeeId.size() > 0 &&
+        data.employeeName is string && data.employeeName.size() > 0 && data.employeeName.size() <= 200 &&
+        data.monthYear is string && data.monthYear.size() > 0 && data.monthYear.size() <= 20 &&
+        data.paymentStatus in ['مسودة', 'معتمد', 'مدفوع'] &&
+        (!('jobTitle' in data) || data.jobTitle is string) &&
+        (!('employeePhone' in data) || data.employeePhone is string) &&
+        (!('baseSalary' in data) || (data.baseSalary is number && data.baseSalary >= 0)) &&
+        (!('allowances' in data) || (data.allowances is number && data.allowances >= 0)) &&
+        (!('bonuses' in data) || (data.bonuses is number && data.bonuses >= 0)) &&
+        (!('deductions' in data) || (data.deductions is number && data.deductions >= 0)) &&
+        (!('netSalary' in data) || (data.netSalary is number && data.netSalary >= 0)) &&
+        (!('paymentDate' in data) || data.paymentDate is string) &&
+        (!('notes' in data) || data.notes is string) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time)) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidProduct(data, userId) {
+      return data.userId == userId &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+        data.quantity is number && data.quantity >= 0 &&
+        data.minThreshold is number && data.minThreshold >= 0 &&
+        (!('sku' in data) || (data.sku is string && data.sku.size() <= 80)) &&
+        (!('category' in data) || data.category is string) &&
+        (!('unit' in data) || data.unit is string) &&
+        (!('unitCost' in data) || (data.unitCost is number && data.unitCost >= 0)) &&
+        (!('sellingPrice' in data) || (data.sellingPrice is number && data.sellingPrice >= 0)) &&
+        (!('supplierName' in data) || data.supplierName is string) &&
+        (!('supplierPhone' in data) || data.supplierPhone is string) &&
+        (!('alertsEnabled' in data) || data.alertsEnabled is bool) &&
+        (!('notes' in data) || data.notes is string) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time)) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
     match /users/{userId} {
       allow read, write: if isOwner(userId);
 
@@ -102,6 +182,34 @@ service cloud.firestore {
         allow read: if isOwner(userId);
         allow create: if isOwner(userId) && isValidQuote(incoming(), userId);
         allow update: if isOwner(userId) && isValidQuote(incoming(), userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidTransaction(incoming(), userId);
+        allow update: if isOwner(userId) && isValidTransaction(incoming(), userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /employees/{employeeId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidEmployee(incoming(), userId);
+        allow update: if isOwner(userId) && isValidEmployee(incoming(), userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /payrolls/{payrollId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidPayrollRecord(incoming(), userId);
+        allow update: if isOwner(userId) && isValidPayrollRecord(incoming(), userId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /products/{productId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidProduct(incoming(), userId);
+        allow update: if isOwner(userId) && isValidProduct(incoming(), userId);
         allow delete: if isOwner(userId);
       }
     }
